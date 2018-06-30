@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>XO Bot</title>
+    <style>
+        body{
+            padding: 0px;
+            margin: 0px;
+            overflow: hidden;
+        }
+        .pixel{
+            position: absolute;
+            background-color: darkgray;
+            border: 0.5vw solid black;
+        }
+        #board{
+            position: relative;
+            left: 50%;
+            transform: translateX(-36%);
+        }
+        .reset{
+            position: relative;
+            left: 45%;
+            transform: translateX(-50%);
+            height: 5vw;
+            width: 10vw;
+            font-weight: bold;
+            font-size: 2vw;
+            margin-bottom: 2vh;
+        }
+    </style>
+</head>
+<body>
+<button class="reset" onclick="board.reset()">Reset</button>
+<button class="reset" onclick="board.reset(true)">Switch</button>
+<div id="board"></div>
+<script>
+    class cell{
+        constructor(target){
+            this.target = target;
+            this.value = -1;
+        }
+    }
+    class Board{
+        constructor(row,col,percent){
+            this.row = row;
+            this.col = col;
+            this.percent = percent;
+            this.board = this.createBoard();
+        }
+        createBoard(){
+            let board = new Array(this.row);
+            for(let i=0;i<this.row;i++) {
+                board[i] = new Array(this.col);
+                for(let j=0;j<this.col;j++)
+                    board[i][j] = new cell(this.createPixel(i, j));
+            }
+            return board;
+        }
+        createPixel(i,j){
+            let pixel = document.createElement("div");
+            pixel.style.top = (i*(this.percent/this.row))+"vh";
+            pixel.style.left = (j*(this.percent/this.col))+"vw";
+            pixel.style.height = (this.percent/this.row)+"vh";
+            pixel.style.width = (this.percent/this.col)+"vw";
+            pixel.classList.add("pixel");
+            pixel.addEventListener("click",function () {
+                unlock(i,j);
+            });
+            document.getElementById("board").appendChild(pixel);
+            return pixel;
+        }
+        paint(){
+            for(let i=0;i<this.row;i++)
+                for(let j=0;j<this.col;j++)
+                    this.board[i][j].target.style.backgroundColor = this.board[i][j].value==1?"red":this.board[i][j].value==0?"blue":"darkgrey";
+        }
+        reset(change){
+            for(let i=0;i<this.row;i++)
+                for(let j=0;j<this.col;j++)
+                    this.board[i][j].value = -1;
+            board.paint();
+            lock=false;
+            if(change==undefined)
+                cpuGuess();
+        }
+    }
+
+    function ck(mat,i,j,ai,aj,lvl,player) {
+        if (i < 0 || j < 0 || i >= mat.length || j >= mat[0].length || mat[i][j].value != player)
+            return 0;
+        return lvl == 1 ? 1 : ck(mat, i + ai, j + aj, ai, aj, lvl - 1, player);
+    }
+
+    function isWon(mat,player) {
+        res = -1;
+        for (let i = 0; i < mat.length; i++)
+            for (let j = 0; j < mat[0].length; j++) {
+                if (mat[i][j].value == player && (ck(mat, i, j, 0, 1, 3, player) || ck(mat, i, j, 1, 0, 3, player) || ck(mat, i, j, 1, 1, 3, player) || ck(mat, i, j, 1, -1, 3, player)))
+                    return 1;
+                if (mat[i][j].value == -1)
+                    res = 0;
+            }
+        return res;
+    }
+
+    function rev(player) {
+        return player == 0 ? 1 : 0;
+    }
+
+    function canWin(mat,player) {
+        for (let i = 0; i < mat.length; i++)
+            for (let j = 0; j < mat[0].length; j++)
+                if (mat[i][j].value == -1) {
+                    mat[i][j].value = player;
+                    if (isWon(mat, player) == 1 || canWin(mat, rev(player)) == player) {
+                        mat[i][j].value = -1;
+                        return player;
+                    }
+                    mat[i][j].value = -1;
+                }
+        return isWon(mat, player) == -1 ? -1 : rev(player);
+    }
+
+    function test(mat,player,i,j,flag){
+        mat[i][j].value = player;
+        if(isWon(mat, player) == 1 || (flag && canWin(mat, rev(player)) == player)) {
+            mat[i][j].value = -1;
+            return [i, j];
+        }
+        mat[i][j].value=-1;
+        return null;
+    }
+
+    function guessNext(mat,player) {
+        bk = [-1,-1];
+        error = [-1,-1];
+        for(let i = 0; i < mat.length; i++)
+            for(let j = 0; j < mat[0].length; j++)
+                if(mat[i][j].value == -1) {
+                    res = test(mat,player,i,j,1);
+                    if(res!=null)
+                        return res;
+                    bk = [i,j];
+                    res1 = test(mat,rev(player),i,j,0);
+                    if(res1!=null)
+                        error = [res1[0],res1[1]];
+                }
+
+        return error[0]!=-1?error:bk;
+    }
+
+    function cpuGuess(){
+        let guess = guessNext(board.board,player);
+        board.board[guess[0]][guess[1]].value = player;
+        board.paint();
+        if(isWon(board.board,player)==1)
+            lock=true;
+    }
+
+    function unlock(i,j){
+        if(board.board[i][j].value!=-1 || lock)
+            return;
+        board.board[i][j].value=rev(player);
+        board.paint();
+        if(isWon(board.board,rev(player))==1)
+            lock = true;
+        else
+            cpuGuess();
+    }
+
+    let player = 1;
+    let lock = false;
+    let board = new Board(3,3,70);
+    cpuGuess();
+</script>
+</body>
+</html>
